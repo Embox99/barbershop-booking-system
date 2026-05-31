@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: barbershop_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: barbershop
+      POSTGRES_PASSWORD: barbershop
+      POSTGRES_DB: barbershop
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barbershop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: barbershop_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://barbershop:barbershop@db:5432/barbershop
+      JWT_SECRET: your-very-long-random-secret-here
+
+      PORT: 5000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      WORK_START: ${WORK_START:-10:00}
+      WORK_END: ${WORK_END:-20:00}
+      SLOT_STEP_MINUTES: ${SLOT_STEP_MINUTES:-15}
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: barbershop_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:

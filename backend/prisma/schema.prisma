@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  client
+  barber
+  admin
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+model User {
+  id         Int       @id @default(autoincrement())
+  name       String?
+  phone      String    @unique
+  role       Role      @default(client)
+  otpCode    String?
+  otpExpires DateTime?
+  createdAt  DateTime  @default(now())
+
+  clientAppointments Appointment[] @relation("ClientAppointments")
+  barberAppointments Appointment[] @relation("BarberAppointments")
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Int
+  duration    Int
+  createdAt   DateTime @default(now())
+
+  appointments Appointment[]
+}
+
+model Appointment {
+  id        Int               @id @default(autoincrement())
+  dateTime  DateTime
+  status    AppointmentStatus @default(pending)
+  createdAt DateTime          @default(now())
+
+  userId    Int
+  user      User    @relation("ClientAppointments", fields: [userId], references: [id])
+  barberId  Int
+  barber    User    @relation("BarberAppointments", fields: [barberId], references: [id])
+  serviceId Int
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  // DB-level guard: one non-cancelled slot per barber per time
+  @@unique([barberId, dateTime], name: "barber_datetime_unique")
+}
